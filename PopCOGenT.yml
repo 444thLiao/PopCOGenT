@@ -5,7 +5,7 @@ channels:
 - r
 dependencies:
 - biopython=1.68
-- joblib=0.9.4
+- joblib=0.9.4=py36_0
 - networkx=1.11
 - numpy=1.11.3
 - pandas=0.19.2

@@ -107,7 +107,7 @@ def clean_id(clone):
     return c
 
 os.system('mkdir -p output')
-df = pd.read_table(pop_infile_name, dtype=str)
+df = pd.read_table(project_dir+pop_infile_name, dtype=str)
 
 # Loops over all alignment blocks and puts sequences into a dictionary
 seqs = {}

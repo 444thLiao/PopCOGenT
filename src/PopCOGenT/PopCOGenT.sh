@@ -1,8 +1,7 @@
-#!/bin/bash
+#!/usr/bin/zsh
 
 configfile=./config.sh
 source ${configfile}
-source activate PopCOGenT
 source ${mugsy_env}
 
 if [ "${slurm_str}" = "" ]

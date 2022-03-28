@@ -201,7 +201,7 @@ treeloc.columns = ['tree_no', 'Start', 'End']
 msa_file = '%s/%s.core.fasta'%(input_dir, output_prefix)
 total_alignment = {s.id : str(s.seq) for s in SeqIO.parse(msa_file, 'fasta')}
 
-pops = pd.read_table(pop_infile_name, dtype=str)
+pops = pd.read_table(project_dir+pop_infile_name, dtype=str)
 pop_list = list(pops[pops.Cluster_ID == focus_population]['Strain'])
 
 seqs = {}

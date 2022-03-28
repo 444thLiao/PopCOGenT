@@ -9,7 +9,7 @@ import glob
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
-
+from os.path import join
 
 def main():
     parser = argparse.ArgumentParser(

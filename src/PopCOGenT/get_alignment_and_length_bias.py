@@ -1,5 +1,6 @@
 import argparse
 from os import system, path, remove, makedirs
+from os.path import join,exists
 import random
 import string
 from Bio import SeqIO
@@ -8,7 +9,7 @@ from joblib import Parallel, delayed
 import glob
 from itertools import combinations
 import pandas as pd
-
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser(
@@ -61,7 +62,7 @@ def main():
                         default=False,
                         action='store_true')
     parser.add_argument('--script_dir',
-                        default=None,
+                        default='./',
                         type=str,
                         help='Directory for run scripts. Please provide absolute path. Required for slurm scripts.')
     parser.add_argument('--source_path',
@@ -106,7 +107,7 @@ def check_inputs(args):
     # Check that contig files exist in the directory
     contig_list = glob.glob('{contigdir}/*{extension}'.format(contigdir=args.genome_dir,
                                                               extension=args.genome_ext))
-
+    #print(contig_list)
     if len(contig_list) == 0:
         raise FileNotFoundError('Files with contig extension not found in directory.')
 
@@ -138,10 +139,15 @@ def run_on_single_machine(threads,
                           alignment_dir,
                           mugsy_path,
                           keep_alignments):
-    
-    renamed_genomes = [rename_for_mugsy(g) for g in glob.glob(genome_directory + '*' + genome_extension)]
+    tqdm.write('renaming the input genomes')
+    renamed_genomes = [rename_for_mugsy(g) for g in tqdm(glob.glob(join(genome_directory,'*' + genome_extension)))]
     pairs_and_seeds = [(g1, g2, random.randint(1, int(1e9))) for g1, g2 in combinations(renamed_genomes, 2)]
-    length_bias_files = Parallel(n_jobs=threads)(delayed(align_and_calculate_length_bias)(g1, g2, alignment_dir, mugsy_path, seed, keep_alignments) for g1, g2, seed in pairs_and_seeds)
+    maf_files = [maf_name(_[0],_[1],alignment_dir) for _ in pairs_and_seeds]
+    remaining_files = [_ for _ in maf_files if not exists(_)]
+    tqdm.write(f'{len(maf_files)} in total needed. {len(remaining_files)} would be runned')
+    #pairs_and_seeds = [p for m,p in tqdm(zip(maf_files,pairs_and_seeds)) if not exists(m+'.length_bias.txt')]
+    length_bias_files = Parallel(n_jobs=threads)(delayed(align_and_calculate_length_bias)(g1, g2, alignment_dir, mugsy_path, seed, keep_alignments) 
+                                                 for g1, g2, seed in tqdm(pairs_and_seeds))
     return length_bias_files
 
 def make_scripts(genome_directory,
@@ -151,16 +157,18 @@ def make_scripts(genome_directory,
                  mugsy_path,
                  script_dir,
                  source_path):
-    renamed_genomes = [rename_for_mugsy(g) for g in glob.glob(genome_directory + '*' + genome_extension)]
+    tqdm.write('renaming the input genomes')
+    renamed_genomes = [rename_for_mugsy(g) for g in tqdm(glob.glob(join(genome_directory,'*' + genome_extension)))]
     pairs_and_seeds = [(g1, g2, random.randint(1, int(1e9))) for g1, g2 in combinations(renamed_genomes, 2)]
-    script_num = 0
-    for g1, g2, seed in pairs_and_seeds:
-        with open('{scriptdir}/run_align_and_calc_{script_num}.sh'.format(scriptdir=script_dir, script_num=str(script_num)), 'w') as outfile:
-            outfile.write('#!/bin/bash\n')
-            outfile.write('source activate HGT_cluster\n')
-            outfile.write('source {mugsy_env}\n'.format(mugsy_env=mugsy_env))
-            outfile.write('python {source_path}/slurm_alignment_and_length_bias.py --genome1 {g1} --genome2 {g2} --alignment_dir {alignment_dir} --mugsy_path {mugsy_path} --seed {seed}'.format(g1=g1, g2=g2, alignment_dir=alignment_dir, mugsy_path=mugsy_path, seed=str(seed), source_path=source_path))
-        script_num += 1
-
+    maf_files = [maf_name(_[0],_[1],alignment_dir) for _ in pairs_and_seeds]
+    tqdm.write(f'Counting the pre-calculated files.')
+    pairs_and_seeds = [p 
+                       for m,p in tqdm(zip(maf_files,pairs_and_seeds)) 
+                       if not exists(m+'.length_bias.txt')]
+    tqdm.write(f'{len(pairs_and_seeds)} were lefted')
+    with open('./cmds','w') as f1:
+        for g1, g2, seed in tqdm(pairs_and_seeds):
+            cmd = f'source {mugsy_env}'.format(mugsy_env=mugsy_env) +f'; /home-user/thliao/anaconda3/envs/PopCOGenT/bin/python3.6 {script_dir}/slurm_alignment_and_length_bias.py --genome1 {g1} --genome2 {g2} --alignment_dir {alignment_dir} --mugsy_path {mugsy_path} --seed {seed} --keep_alignments'.format(g1=g1, g2=g2, alignment_dir=alignment_dir, mugsy_path=mugsy_path, seed=str(seed), source_path=source_path)
+            f1.write(cmd+'\n')
 if __name__ == '__main__':
     main()
